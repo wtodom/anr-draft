@@ -12,3 +12,6 @@
 #### Leave Draft
 
 #### Begin Draft
+
+- set `has_started` to `True`.
+- message everyone in the draft their first pack (IDs)
