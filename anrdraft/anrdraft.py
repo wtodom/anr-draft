@@ -160,11 +160,14 @@ def open_new_pack(draft_id, side):
     """
     for player in get_players(draft_id):
         pack = DRAFTS[draft_id]['players'][player][side]['packs'].pop(0)
+        DRAFTS[draft_id]['players'][player]['inbox'].append(pack)
         card_blocks = [blocks.divider()]
         for card in pack:
             card_text = templates.format(card)
-            card_blocks.append(blocks.text_with_button(
-                card_text, card['title']))
+            button_value = '--'.join([draft_id, player, card['code']])
+            pick_block = blocks.text_with_button(
+                card_text, card['title'], button_value)
+            card_blocks.append(pick_block)
             card_blocks.append(blocks.divider())
         client.chat_postMessage(
             channel=get_player_dm_id(player),
@@ -176,24 +179,53 @@ def open_new_pack(draft_id, side):
             blocks=card_blocks
         )
 
+
+def handle_pick(actions):
+    for action in actions:
+        encoded_value = action['value']
+        draft_id, player_name, card_code = encoded_value.split('--')
+        pack = DRAFTS[draft_id]['players'][player_name]['inbox'].pop(0)
+        print('\n\n')
+        print(pack[0])
+        print('\n\n')
+        # TODO: add card to picks
+
+
 # Endpoints / Slash Commands
 
-
-def respond_to_selection(payload):
+def open_next_pack_or_wait(payload):
+    # TODO: finish handling pick - check for next pack to open (for all players)
     request = {
-        'text': payload['actions'][0]['selected_option']['value'] + ' was selected!',
-        "replace_original": False
+        'text': ' '.join(payload['actions'][0]['text']['text'].split(' ')[1:]) + ' was picked.',
+        "replace_original": True
     }
-    requests.post(payload['response_url'], json=request, verify=False)
+    requests.post(payload['response_url'], json=request)
 
 
 @app.route('/actions', methods=['POST'])
 def actions():
-    request_token = request.form['token']
-    if request_token == VERIFICATION_TOKEN:
-        payload = request.form['payload']
-        respond_to_selection(payload)
-        return jsonify({'success': True})
+    """
+    "actions": [
+        {
+          "action_id": "kUUl7",
+          "block_id": "hWH",
+          "text": {
+            "type": "plain_text",
+            "text": "Pick Cerebral Imaging: Infinite Frontiers",
+            "emoji": true
+          },
+          "value": "noas-weston.odom-03001",
+          "style": "primary",
+          "type": "button",
+          "action_ts": "1565596109.059515"
+        }
+      ]
+    """
+    payload = json.loads(request.form['payload'])
+    actions = payload['actions']
+    handle_pick(actions)
+    open_next_pack_or_wait(payload)
+    return jsonify({'success': True})
 
 
 @app.route('/debug', methods=['POST'])
@@ -254,7 +286,7 @@ def start_draft():
         setup_packs(draft_id)
         DRAFTS[draft_id]['metadata']['has_started'] = True
         open_new_pack(draft_id, 'corp')
-        return 'Draft successfully started.'
+        return '', 200
 
 
 @app.route('/joindraft', methods=['POST'])
