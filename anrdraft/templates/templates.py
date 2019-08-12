@@ -3,15 +3,13 @@ import json
 
 def identity_text(card):
     return (
-        '*Type*: {type}\n'
         '*Name*: {name}\n'
-        '*Text*: {text}\n'
-        '*Faction*: {faction}'
+        '*Type*: {type}\n'
+        '*Text*: {text}'
     ).format(
-        type=card.get('type_code', 'none'),
         name=card.get('title', 'none'),
-        text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        type=card.get('type_code', 'none').title(),
+        text=card.get('text', 'none')
     )
 
 
@@ -20,18 +18,18 @@ def agenda_text(card):
         '*Name*: {name}\n'
         '*Type*: {type}\n'
         '*Subtype*: {subtype}\n'
-        '*Text*: {text}\n'
         '*Agenda Points*: {agenda_points}\n'
         '*Advancement Requirement*: {adv_req}\n'
+        '*Text*: {text}\n'
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
-        text=card.get('text', 'none'),
         agenda_points=card.get('agenda_points', 'none'),
         adv_req=card.get('advancement_cost', 'none'),
-        faction=card.get('faction_code', 'none')
+        text=card.get('text', 'none'),
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -46,12 +44,12 @@ def asset_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         rez_cost=str(card.get('cost', 'none')),
         trash_cost=str(card.get('trash_cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -66,12 +64,12 @@ def ice_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         rez_cost=str(card.get('cost', 'none')),
         strength=str(card.get('strength', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -86,12 +84,12 @@ def operation_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         play_cost=str(card.get('cost', 'none')),
         trash_cost=str(card.get('trash_cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -106,12 +104,12 @@ def upgrade_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         rez_cost=str(card.get('cost', 'none')),
         trash_cost=str(card.get('trash_cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -125,11 +123,11 @@ def event_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         play_cost=str(card.get('cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -143,11 +141,11 @@ def hardware_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         install_cost=str(card.get('cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -162,12 +160,12 @@ def program_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         install_cost=str(card.get('cost', 'none')),
         memory_cost=str(card.get('memory_cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
@@ -181,11 +179,11 @@ def resource_text(card):
         '*Faction*: {faction}'
     ).format(
         name=card.get('title', 'none'),
-        type=card.get('type_code', 'none'),
+        type=card.get('type_code', 'none').title(),
         subtype=card.get('keywords', 'none'),
         install_cost=str(card.get('cost', 'none')),
         text=card.get('text', 'none'),
-        faction=card.get('faction_code', 'none')
+        faction=card.get('faction_code', 'none').title()
     )
 
 
