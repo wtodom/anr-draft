@@ -48,18 +48,18 @@ def divider():
     }
 
 
-def text_with_button(text_string, button_value):
+def text_with_button(text_area_string, button_text, button_value):
     return {
         "type": "section",
         "text": {
             "type": "mrkdwn",
-            "text": "{text}".format(text=text_string)
+            "text": "{text}".format(text=text_area_string)
         },
         "accessory": {
             "type": "button",
             "text": {
                 "type": "plain_text",
-                    "text": "Pick " + button_value,
+                    "text": "Pick " + button_text,
                     "emoji": True
             },
             "style": "primary",
