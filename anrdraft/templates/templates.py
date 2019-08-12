@@ -1,6 +1,20 @@
 import json
 
 
+def identity_text(card):
+    return (
+        '*Type*: {type}\n'
+        '*Name*: {name}\n'
+        '*Text*: {text}\n'
+        '*Faction*: {faction}'
+    ).format(
+        type=card.get('type_code', 'none'),
+        name=card.get('title', 'none'),
+        text=card.get('text', 'none'),
+        faction=card.get('faction_code', 'none')
+    )
+
+
 def agenda_text(card):
     return (
         '*Name*: {name}\n'
@@ -178,7 +192,9 @@ def resource_text(card):
 def format(card):
     card_type = card.get('type_code', 'none')
 
-    if card_type == 'agenda':
+    if card_type == 'identity':
+        return identity_text(card)
+    elif card_type == 'agenda':
         return agenda_text(card)
     elif card_type == 'asset':
         return asset_text(card)

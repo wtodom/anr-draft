@@ -163,13 +163,13 @@ def open_new_pack(draft_id, side):
         card_blocks = [blocks.divider()]
         for card in pack:
             card_text = templates.format(card)
-            card_blocks.append(blocks.card_text(templates.format(card)))
             card_blocks.append(blocks.text_with_button(
                 card_text, card['title']))
             card_blocks.append(blocks.divider())
         client.chat_postMessage(
             channel=get_player_dm_id(player),
-            text='Welcome to the draft! Here is your first corp ID pack. Good luck!'
+            text='Welcome to the draft! Here is your {side} ID pack. Good luck!'.format(
+                side=side)
         )
         client.chat_postMessage(
             channel=get_player_dm_id(player),
