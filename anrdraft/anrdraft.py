@@ -1,23 +1,42 @@
 #!/usr/bin/env python
 
+
 import json
 import os
 import random
 import string
 
-import requests
 from flask import Flask, jsonify, request
+import requests
+import slack
 
 from templates import blocks, templates
 
 app = Flask(__name__)
 
-TOKEN = 'pphnmMPvRz4Dy3xzR9WmbJtf'
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+with open(HERE + '/secrets.json', 'r') as f:
+    tokens = json.loads(f.read())
+    API_TOKEN = tokens['api_token']
+    VERIFICATION_TOKEN = tokens['verification_token']
+
+client = slack.WebClient(token=API_TOKEN)
+
 DRAFTS = {}
 PLAYERS = {}
 
 
-# region helpers
+# Getters
+
+def get_player_id(player_name):
+    if player_name in PLAYERS:
+        return PLAYERS[player_name]['player_id']
+
+
+def get_player_dm_id(player_name):
+    return PLAYERS[player_name]['dm_id']
+
 
 def get_num_players(draft_id):
     return len(get_players(draft_id))
@@ -34,10 +53,8 @@ def get_creator(draft_id):
 def get_picks(draft_id, player_name, side, pack_num):
     return DRAFTS[draft_id]['players'][player_name][side]['packs'][pack_num]
 
-# endregion
 
-# region draft setup
-
+# Draft Setup
 
 def setup_draft(initiating_user_name, initiating_user_id):
     draft_id = gen_draft_id()
@@ -46,7 +63,8 @@ def setup_draft(initiating_user_name, initiating_user_id):
     DRAFTS[draft_id] = {
         'metadata': {
             'creator': initiating_user_name,
-            'has_started': False
+            'has_started': False,
+            'stage': 0
         },
         'players': {}
     }
@@ -70,10 +88,9 @@ def deal_card(draft_id, player_name, side, pack_num, card):
 
 
 def setup_packs(draft_id):
-    here = os.path.dirname(os.path.abspath(__file__))
-    data_files = os.listdir(here + '/data')
+    data_files = os.listdir(HERE + '/data')
     for filename in data_files:
-        filepath = here + '/data/' + filename
+        filepath = HERE + '/data/' + filename
         with open(filepath, 'r') as f:
             side = filename.split('_')[0]
             cards = json.loads(f.read())['cards']
@@ -98,7 +115,13 @@ def setup_packs(draft_id):
 
 
 def add_player(player_name, player_id, draft_id):
+    im_list = client.im_list()
+    for im in im_list['ims']:
+        if im['user'] == player_id:
+            player_dm_id = im['id']
+
     DRAFTS[draft_id]['players'][player_name] = {
+        'inbox': [],
         'corp': {
             'packs': [[], [], [], []],
             'picks': []
@@ -110,8 +133,10 @@ def add_player(player_name, player_id, draft_id):
     }
     PLAYERS[player_name] = {
         'player_id': player_id,
-        'draft_id': draft_id
+        'draft_id': draft_id,
+        'dm_id': player_dm_id
     }
+
     return 'ADD_SUCCESSFUL'
 
 
@@ -125,57 +150,88 @@ def remove_player(player_name, draft_id):
     del DRAFTS[draft_id]['players'][player_name]
     return 'REMOVE_SUCCESSFUL'
 
-# endregion
 
-# region actions
+# Draft Operations
+
+def open_new_pack(draft_id, side):
+    """
+    Sends first set of picks to players.
+    After this the pack-sending logic is entirely event-driven.
+    """
+    for player in get_players(draft_id):
+        pack = DRAFTS[draft_id]['players'][player][side]['packs'].pop(0)
+        card_blocks = [blocks.divider()]
+        for card in pack:
+            card_text = templates.format(card)
+            card_blocks.append(blocks.card_text(templates.format(card)))
+            card_blocks.append(blocks.text_with_button(
+                card_text, card['title']))
+            card_blocks.append(blocks.divider())
+        client.chat_postMessage(
+            channel=get_player_dm_id(player),
+            text='Welcome to the draft! Here is your first corp ID pack. Good luck!'
+        )
+        client.chat_postMessage(
+            channel=get_player_dm_id(player),
+            blocks=card_blocks
+        )
+
+# Endpoints / Slash Commands
+
+
+def respond_to_selection(payload):
+    request = {
+        'text': payload['actions'][0]['selected_option']['value'] + ' was selected!',
+        "replace_original": False
+    }
+    requests.post(payload['response_url'], json=request, verify=False)
 
 
 @app.route('/actions', methods=['POST'])
 def actions():
     request_token = request.form['token']
-    if request_token == TOKEN:
-        return '```' + json.dumps(request, indent=4, sort_keys=True) + '```'
-
-# endregion
-
-# region slash commands
+    if request_token == VERIFICATION_TOKEN:
+        payload = request.form['payload']
+        respond_to_selection(payload)
+        return jsonify({'success': True})
 
 
 @app.route('/debug', methods=['POST'])
 def debug():
     request_token = request.form['token']
-    if request_token == TOKEN:
+    if request_token == VERIFICATION_TOKEN:
         # return '```' + json.dumps(DRAFTS, indent=4, sort_keys=True) + '```'
-        draft = DRAFTS[request.form['text']]
-        me = draft['players']['weston.odom']
-        cards = me['corp']['packs'][2]
-        card_blocks = [blocks.divider()]
-        for card in cards:
-            print('\ncard:\n')
-            print(card)
-            print('\n\n')
-            card_text = templates.format(card)
-            # card_blocks.append(blocks.card_text(templates.format(card)))
-            # image_url = card.get('image_url')
-            # if image_url:
-            #     card_blocks.append(blocks.card_image(
-            #         image_url,
-            #         card['title']
-            #     ))
-            # card_blocks.append(blocks.pick_button(card['title']))
-            card_blocks.append(blocks.text_with_button(
-                card_text, card['title']))
-            card_blocks.append(blocks.divider())
-            print('\nblocks:\n')
-            print({"blocks": card_blocks})
-            print('\n\n')
-        return jsonify({"blocks": card_blocks})
+        return '```' + json.dumps(PLAYERS, indent=4, sort_keys=True) + '```'
+        # draft = DRAFTS[request.form['text']]
+        # me = draft['players']['weston.odom']
+        # cards = me['corp']['packs'][2]
+        # card_blocks = [blocks.divider()]
+        # for card in cards:
+        #     print('\ncard:\n')
+        #     print(card)
+        #     print('\n\n')
+        #     card_text = templates.format(card)
+        #     # card_blocks.append(blocks.card_text(templates.format(card)))
+        #     # image_url = card.get('image_url')
+        #     # if image_url:
+        #     #     card_blocks.append(blocks.card_image(
+        #     #         image_url,
+        #     #         card['title']
+        #     #     ))
+        #     # card_blocks.append(blocks.pick_button(card['title']))
+        #     card_blocks.append(blocks.text_with_button(
+        #         card_text, card['title']))
+        #     card_blocks.append(blocks.divider())
+        #     print('\nblocks:\n')
+        #     print({"blocks": card_blocks})
+        #     print('\n\n')
+        # return jsonify({"blocks": card_blocks})
 
 
 @app.route('/createdraft', methods=['POST'])
 def create_draft():
     request_token = request.form['token']
-    if request_token == TOKEN:
+    if request_token == VERIFICATION_TOKEN:
         user_name = request.form['user_name']
         user_id = request.form['user_id']
         new_draft_code = setup_draft(user_name, user_id)
@@ -191,19 +247,20 @@ def create_draft():
 @app.route('/startdraft', methods=['POST'])
 def start_draft():
     request_token = request.form['token']
-    if request_token == TOKEN:
+    if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
         setup_packs(draft_id)
-        # TODO: set has_started=True
-    return 'Draft successfully started.'
+        DRAFTS[draft_id]['metadata']['has_started'] = True
+        open_new_pack(draft_id, 'corp')
+        return 'Draft successfully started.'
 
 
 @app.route('/joindraft', methods=['POST'])
 def join_draft():
     request_token = request.form['token']
-    if request_token == TOKEN:
+    if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
@@ -223,7 +280,7 @@ def join_draft():
 def leave_draft():
     # NOTE: UNTESTED
     request_token = request.form['token']
-    if request_token == TOKEN:
+    if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
         player_name = request.form['user_name']
         res = remove_player(player_name, draft_id)
@@ -241,7 +298,7 @@ def leave_draft():
 def reset_draft():
     return '`/resetdraft` is deprecated.'
     # request_token = request.form['token']
-    # if request_token == TOKEN:
+    # if request_token == VERIFICATION_TOKEN:
     #     if request.form['user_name'] != 'weston.odom':
     #         return 'This action is only available to admins.'
     #     draft_id = request.form['text']
@@ -252,18 +309,15 @@ def reset_draft():
     #         draft_id=draft_id
     #     )
 
-# endregion
-
 
 if __name__ == '__main__':
     app.run()
 
-    # here = os.path.dirname(os.path.abspath(__file__))
-    # data_files = os.listdir(here + '/data')
+    # data_files = os.listdir(HERE + '/data')
     # for filename in data_files:
     #     if filename.split('.')[1] != 'json':
     #         continue
-    #     filepath = here + '/data/' + filename
+    #     filepath = HERE + '/data/' + filename
     #     with open(filepath, 'r') as f:
     #         side = filename.split('_')[0]
     #         cards = json.loads(f.read())['cards']
