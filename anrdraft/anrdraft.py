@@ -222,10 +222,13 @@ def actions():
       ]
     """
     payload = json.loads(request.form['payload'])
-    actions = payload['actions']
-    handle_pick(actions)
-    open_next_pack_or_wait(payload)
-    return jsonify({'success': True})
+
+    request_token = payload['token']
+    if request_token == VERIFICATION_TOKEN:
+        actions = payload['actions']
+        handle_pick(actions)
+        open_next_pack_or_wait(payload)
+        return jsonify({'success': True})
 
 
 @app.route('/debug', methods=['POST'])
