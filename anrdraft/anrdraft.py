@@ -270,8 +270,6 @@ def create_draft():
         user_name = request.form['user_name']
         user_id = request.form['user_id']
         new_draft_code = setup_draft(user_name, user_id)
-        # TODO: add player and draft_id to reverse lookup table
-        # TODO: add player and draft_id to reverse lookup table
         return (
             'Draft successfully created. Your draft ID is `{draft_id}`. '
             'Other players can use this code with the `/joindraft` command '
@@ -300,11 +298,20 @@ def join_draft():
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
         player_name = request.form['user_name']
+        # TODO: don't allow joining the same draft multiple times
         player_id = request.form['user_id']
         add_player(player_name, player_id, draft_id)
         creator_name = get_creator(draft_id)
-        # TODO: notify creator
-        # TODO: add player and draft_id to reverse lookup table
+        channel = get_player_dm_id(creator_name)
+        num_players = get_num_players(draft_id)
+        client.chat_postMessage(
+            channel=channel,
+            text=(
+                '{player} has joined your draft (`{draft}`). There are now '
+                '{num} players registered.').format(
+                    player=player_name, draft=draft_id, num=num_players
+            )
+        )
     return (
         'Successfully joined draft `{draft_id}`. Please wait for `{creator}` '
         'begin the draft.'
