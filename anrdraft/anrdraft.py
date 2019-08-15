@@ -38,6 +38,15 @@ def get_player_dm_id(player_name):
     return PLAYERS[player_name]['dm_id']
 
 
+def get_player_draft_info(player_name):
+    draft_id = PLAYERS[player_name]['draft_id']
+    return DRAFTS[draft_id]['players'][player_name]
+
+
+def get_seat_number(player_name):
+    return PLAYERS[player_name]['seat_number']
+
+
 def get_num_players(draft_id):
     return len(get_players(draft_id))
 
@@ -54,7 +63,16 @@ def get_picks(draft_id, player_name, side, pack_num):
     return DRAFTS[draft_id]['players'][player_name][side]['packs'][pack_num]
 
 
+def player_has_pack_waiting(draft_id, player_name):
+    inbox = DRAFTS[draft_id]['players'][player_name]['inbox']
+    return len(inbox) > 0
+
+
+def player_has_open_pack(draft_id, player_name):
+    return DRAFTS[draft_id]['players'][player_name]['has_open_pack']
+
 # Draft Setup
+
 
 def setup_draft(initiating_user_name, initiating_user_id):
     draft_id = gen_draft_id()
@@ -129,7 +147,8 @@ def add_player(player_name, player_id, draft_id):
         'runner': {
             'packs': [[], [], [], []],
             'picks': []
-        }
+        },
+        'has_open_pack': False
     }
     PLAYERS[player_name] = {
         'player_id': player_id,
@@ -151,7 +170,15 @@ def remove_player(player_name, draft_id):
     return 'REMOVE_SUCCESSFUL'
 
 
+def assign_seat_numbers(draft_id):
+    num_players = get_num_players(draft_id)
+    seats = list(range(num_players))
+    random.shuffle(seats)
+    for player in get_players(draft_id):
+        PLAYERS[player]['seat_number'] = seats.pop(0)
+
 # Draft Operations
+
 
 def open_new_pack(draft_id, side):
     """
@@ -178,49 +205,80 @@ def open_new_pack(draft_id, side):
             channel=get_player_dm_id(player),
             blocks=card_blocks
         )
+        DRAFTS[draft_id]['players'][player]['has_open_pack'] = True
 
 
 def handle_pick(actions):
+    print(len(actions))
     for action in actions:
         encoded_value = action['value']
         draft_id, player_name, card_code = encoded_value.split('--')
         pack = DRAFTS[draft_id]['players'][player_name]['inbox'].pop(0)
-        print('\n\n')
-        print(pack[0])
-        print('\n\n')
-        # TODO: add card to picks
+        for i, card in enumerate(pack):
+            if card['code'] == card_code:
+                card_index = i
+                break
+        picked_card = pack.pop(card_index)
+        add_card_to_picks(draft_id, player_name, picked_card)
+        DRAFTS[draft_id]['players'][player_name]['has_open_pack'] = False
+        if len(pack) > 0:
+            pass_pack(draft_id, player_name, pack)
 
 
-# Endpoints / Slash Commands
+def add_card_to_picks(draft_id, player_name, picked_card):
+    draft = DRAFTS[draft_id]
+    player = draft['players'][player_name]
+    player_picks = player[picked_card['side_code']]['picks']
+    player_picks.append(picked_card['title'])
+
+
+def pass_pack(draft_id, player_name, pack):
+    player_seat = get_seat_number(player_name)
+    next_seat = (player_seat + 1) % get_num_players(draft_id)
+    for player in get_players(draft_id):
+        if get_seat_number(player) == next_seat:
+            DRAFTS[draft_id]['players'][player]['inbox'].append(pack)
+
+
+def open_next_pack(draft_id, player):
+    pack = DRAFTS[draft_id]['players'][player]['inbox'][0]
+    card_blocks = [blocks.divider()]
+    for card in pack:
+        card_text = templates.format(card)
+        button_value = '--'.join([draft_id, player, card['code']])
+        pick_block = blocks.text_with_button(
+            card_text, card['title'], button_value)
+        card_blocks.append(pick_block)
+        card_blocks.append(blocks.divider())
+    side = pack[0]['side_code']
+    client.chat_postMessage(
+        channel=get_player_dm_id(player),
+        text='Here is your next {side} pack.'.format(side=side))
+    client.chat_postMessage(
+        channel=get_player_dm_id(player),
+        blocks=card_blocks
+    )
+    DRAFTS[draft_id]['players'][player]['has_open_pack'] = True
+
 
 def open_next_pack_or_wait(payload):
-    # TODO: finish handling pick - check for next pack to open (for all players)
     request = {
         'text': ' '.join(payload['actions'][0]['text']['text'].split(' ')[1:]) + ' was picked.',
         "replace_original": True
     }
     requests.post(payload['response_url'], json=request)
+    for action in payload['actions']:
+        draft_id, player_name, _ = action['value'].split('--')
+        for player in get_players(draft_id):
+            if (player_has_pack_waiting(draft_id, player) and
+                    not player_has_open_pack(draft_id, player_name)):
+                open_next_pack(draft_id, player)
 
+
+# Endpoints / Slash Commands
 
 @app.route('/actions', methods=['POST'])
 def actions():
-    """
-    "actions": [
-        {
-          "action_id": "kUUl7",
-          "block_id": "hWH",
-          "text": {
-            "type": "plain_text",
-            "text": "Pick Cerebral Imaging: Infinite Frontiers",
-            "emoji": true
-          },
-          "value": "noas-weston.odom-03001",
-          "style": "primary",
-          "type": "button",
-          "action_ts": "1565596109.059515"
-        }
-      ]
-    """
     payload = json.loads(request.form['payload'])
 
     request_token = payload['token']
@@ -236,31 +294,14 @@ def debug():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         # return '```' + json.dumps(DRAFTS, indent=4, sort_keys=True) + '```'
-        return '```' + json.dumps(PLAYERS, indent=4, sort_keys=True) + '```'
-        # draft = DRAFTS[request.form['text']]
-        # me = draft['players']['weston.odom']
-        # cards = me['corp']['packs'][2]
-        # card_blocks = [blocks.divider()]
-        # for card in cards:
-        #     print('\ncard:\n')
-        #     print(card)
-        #     print('\n\n')
-        #     card_text = templates.format(card)
-        #     # card_blocks.append(blocks.card_text(templates.format(card)))
-        #     # image_url = card.get('image_url')
-        #     # if image_url:
-        #     #     card_blocks.append(blocks.card_image(
-        #     #         image_url,
-        #     #         card['title']
-        #     #     ))
-        #     # card_blocks.append(blocks.pick_button(card['title']))
-        #     card_blocks.append(blocks.text_with_button(
-        #         card_text, card['title']))
-        #     card_blocks.append(blocks.divider())
-        #     print('\nblocks:\n')
-        #     print({"blocks": card_blocks})
-        #     print('\n\n')
-        # return jsonify({"blocks": card_blocks})
+        draft_id = request.form['text']
+        debug_thing = DRAFTS[draft_id]['players']
+        player_seats = []
+        for player in debug_thing.keys():
+            ps = player + '--' + \
+                str(DRAFTS[draft_id]['players'][player]['seat_number'])
+            player_seats.append(ps)
+        return str(player_seats)
 
 
 @app.route('/createdraft', methods=['POST'])
@@ -285,6 +326,7 @@ def start_draft():
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
         setup_packs(draft_id)
+        assign_seat_numbers(draft_id)
         DRAFTS[draft_id]['metadata']['has_started'] = True
         open_new_pack(draft_id, 'corp')
         return '', 200
