@@ -114,7 +114,7 @@ def setup_packs(draft_id):
             cards = json.loads(f.read())['cards']
             if filename in ['corp_ids.json', 'runner_ids.json']:
                 cards = cards[:8]
-                while len(cards) > get_num_players(draft_id):
+                while len(cards) >= get_num_players(draft_id):
                     for player in DRAFTS[draft_id]["players"]:
                         card_index = random.randint(0, len(cards) - 1)
                         card = cards.pop(card_index)
@@ -209,7 +209,6 @@ def open_new_pack(draft_id, side):
 
 
 def handle_pick(actions):
-    print(len(actions))
     for action in actions:
         encoded_value = action['value']
         draft_id, player_name, card_code = encoded_value.split('--')
@@ -267,12 +266,16 @@ def open_next_pack_or_wait(payload):
         "replace_original": True
     }
     requests.post(payload['response_url'], json=request)
+    need_new_pack = True
     for action in payload['actions']:
         draft_id, player_name, _ = action['value'].split('--')
         for player in get_players(draft_id):
             if (player_has_pack_waiting(draft_id, player) and
                     not player_has_open_pack(draft_id, player_name)):
                 open_next_pack(draft_id, player)
+                need_new_pack = False
+    if need_new_pack:
+        open_new_pack(draft_id)
 
 
 # Endpoints / Slash Commands
@@ -293,15 +296,12 @@ def actions():
 def debug():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
-        # return '```' + json.dumps(DRAFTS, indent=4, sort_keys=True) + '```'
-        draft_id = request.form['text']
-        debug_thing = DRAFTS[draft_id]['players']
-        player_seats = []
-        for player in debug_thing.keys():
-            ps = player + '--' + \
-                str(DRAFTS[draft_id]['players'][player]['seat_number'])
-            player_seats.append(ps)
-        return str(player_seats)
+        with open('debug.log', 'w') as f:
+            f.write(json.dumps({
+                'PLAYERS': PLAYERS,
+                'DRAFTS': DRAFTS
+            }, indent=4, sort_keys=True))
+        return 'OK', 200
 
 
 @app.route('/createdraft', methods=['POST'])

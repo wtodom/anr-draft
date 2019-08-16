@@ -3,3 +3,4 @@
 secrets.json
 scratch
 *__pycache__/
+*.log
