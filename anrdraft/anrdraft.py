@@ -59,8 +59,12 @@ def get_creator(draft_id):
     return DRAFTS[draft_id]['metadata']['creator']
 
 
-def get_picks(draft_id, player_name, side, pack_num):
-    return DRAFTS[draft_id]['players'][player_name][side]['packs'][pack_num]
+def get_pack(draft_id, player_name, pack_num):
+    return DRAFTS[draft_id]['players'][player_name]['packs'][pack_num]
+
+
+def get_picks(draft_id, player_name):
+    return DRAFTS[draft_id]['players'][player_name]['picks']
 
 
 def player_has_pack_waiting(draft_id, player_name):
@@ -71,8 +75,17 @@ def player_has_pack_waiting(draft_id, player_name):
 def player_has_open_pack(draft_id, player_name):
     return DRAFTS[draft_id]['players'][player_name]['has_open_pack']
 
-# Draft Setup
 
+def draft_finished(draft_id):
+    for player in get_players(draft_id):
+        inbox = DRAFTS[draft_id]['players'][player]['inbox']
+        packs = DRAFTS[draft_id]['players'][player]['packs']
+        if len(packs) > 0 or len(inbox) > 0:
+            return False
+    return True
+
+
+# Draft Setup
 
 def setup_draft(initiating_user_name, initiating_user_id):
     draft_id = gen_draft_id()
@@ -100,36 +113,55 @@ def gen_draft_id():
     return code
 
 
-def deal_card(draft_id, player_name, side, pack_num, card):
-    DRAFTS[draft_id]["players"][player_name][side]['packs'][pack_num].append(
+def deal_card(draft_id, player_name, pack_num, card):
+    DRAFTS[draft_id]["players"][player_name]['packs'][pack_num].append(
         card)
 
 
+def read_cards_from_file(filepath):
+    with open(filepath, 'r') as f:
+        cards = json.loads(f.read())['cards']
+        return cards
+
+
 def setup_packs(draft_id):
-    data_files = os.listdir(HERE + '/data')
-    for filename in data_files:
-        filepath = HERE + '/data/' + filename
-        with open(filepath, 'r') as f:
-            side = filename.split('_')[0]
-            cards = json.loads(f.read())['cards']
-            if filename in ['corp_ids.json', 'runner_ids.json']:
-                cards = cards[:8]
-                while len(cards) >= get_num_players(draft_id):
-                    for player in DRAFTS[draft_id]["players"]:
-                        card_index = random.randint(0, len(cards) - 1)
-                        card = cards.pop(card_index)
-                        deal_card(draft_id, player, side, 0, card)
-            elif filename in ['corp_cards.json', 'runner_cards.json']:
-                cards = cards[:30]
-                cards_per_pack = len(cards) // (get_num_players(draft_id) * 3)
-                pack_num = 1
-                while cards:
-                    for player in DRAFTS[draft_id]["players"]:
-                        card_index = random.randint(0, len(cards) - 1)
-                        card = cards.pop(card_index)
-                        deal_card(draft_id, player, side, pack_num, card)
-                    if len(get_picks(draft_id, player, side, pack_num)) == cards_per_pack:
-                        pack_num += 1
+    data_dir = HERE + '/data'
+    corp_ids = read_cards_from_file(data_dir + '/corp_ids.json')[:2]
+    corp_cards = read_cards_from_file(data_dir + '/corp_cards.json')[:6]
+    runner_ids = read_cards_from_file(data_dir + '/runner_ids.json')[:2]
+    runner_cards = read_cards_from_file(data_dir + '/runner_cards.json')[:6]
+
+    pack_num = 0
+    cards_per_pack = len(corp_cards) // (get_num_players(draft_id) * 3)
+    while len(corp_ids) >= get_num_players(draft_id):
+        for player in get_players(draft_id):
+            card_index = random.randint(0, len(corp_ids) - 1)
+            card = corp_ids.pop(card_index)
+            deal_card(draft_id, player, pack_num, card)
+    pack_num += 1
+
+    while corp_cards and pack_num <= 3:
+        for player in get_players(draft_id):
+            card_index = random.randint(0, len(corp_cards) - 1)
+            card = corp_cards.pop(card_index)
+            deal_card(draft_id, player, pack_num, card)
+        if len(get_pack(draft_id, player, pack_num)) == cards_per_pack:
+            pack_num += 1
+
+    while len(runner_ids) >= get_num_players(draft_id):
+        for player in get_players(draft_id):
+            card_index = random.randint(0, len(runner_ids) - 1)
+            card = runner_ids.pop(card_index)
+            deal_card(draft_id, player, pack_num, card)
+    pack_num += 1
+
+    while len(runner_cards) >= get_num_players(draft_id):
+        for player in get_players(draft_id):
+            card_index = random.randint(0, len(runner_cards) - 1)
+            card = runner_cards.pop(card_index)
+            deal_card(draft_id, player, pack_num, card)
+        if len(get_pack(draft_id, player, pack_num)) == cards_per_pack:
+            pack_num += 1
 
 
 def add_player(player_name, player_id, draft_id):
@@ -140,13 +172,10 @@ def add_player(player_name, player_id, draft_id):
 
     DRAFTS[draft_id]['players'][player_name] = {
         'inbox': [],
-        'corp': {
-            'packs': [[], [], [], []],
-            'picks': []
-        },
-        'runner': {
-            'packs': [[], [], [], []],
-            'picks': []
+        'packs': [[], [], [], [], [], [], [], []],
+        'picks': {
+            'corp': [],
+            'runner': []
         },
         'has_open_pack': False
     }
@@ -177,16 +206,16 @@ def assign_seat_numbers(draft_id):
     for player in get_players(draft_id):
         PLAYERS[player]['seat_number'] = seats.pop(0)
 
+
 # Draft Operations
 
-
-def open_new_pack(draft_id, side):
+def open_new_pack(draft_id):
     """
     Sends first set of picks to players.
     After this the pack-sending logic is entirely event-driven.
     """
     for player in get_players(draft_id):
-        pack = DRAFTS[draft_id]['players'][player][side]['packs'].pop(0)
+        pack = DRAFTS[draft_id]['players'][player]['packs'].pop(0)
         DRAFTS[draft_id]['players'][player]['inbox'].append(pack)
         card_blocks = [blocks.divider()]
         for card in pack:
@@ -196,11 +225,6 @@ def open_new_pack(draft_id, side):
                 card_text, card['title'], button_value)
             card_blocks.append(pick_block)
             card_blocks.append(blocks.divider())
-        client.chat_postMessage(
-            channel=get_player_dm_id(player),
-            text='Welcome to the draft! Here is your {side} ID pack. Good luck!'.format(
-                side=side)
-        )
         client.chat_postMessage(
             channel=get_player_dm_id(player),
             blocks=card_blocks
@@ -227,7 +251,7 @@ def handle_pick(actions):
 def add_card_to_picks(draft_id, player_name, picked_card):
     draft = DRAFTS[draft_id]
     player = draft['players'][player_name]
-    player_picks = player[picked_card['side_code']]['picks']
+    player_picks = player['picks'][picked_card['side_code']]
     player_picks.append(picked_card['title'])
 
 
@@ -249,10 +273,10 @@ def open_next_pack(draft_id, player):
             card_text, card['title'], button_value)
         card_blocks.append(pick_block)
         card_blocks.append(blocks.divider())
-    side = pack[0]['side_code']
     client.chat_postMessage(
         channel=get_player_dm_id(player),
-        text='Here is your next {side} pack.'.format(side=side))
+        text='Here is your next pack.'
+    )
     client.chat_postMessage(
         channel=get_player_dm_id(player),
         blocks=card_blocks
@@ -268,14 +292,35 @@ def open_next_pack_or_wait(payload):
     requests.post(payload['response_url'], json=request)
     need_new_pack = True
     for action in payload['actions']:
-        draft_id, player_name, _ = action['value'].split('--')
+        draft_id, _, _ = action['value'].split('--')
         for player in get_players(draft_id):
-            if (player_has_pack_waiting(draft_id, player) and
-                    not player_has_open_pack(draft_id, player_name)):
-                open_next_pack(draft_id, player)
+            if player_has_pack_waiting(draft_id, player):
                 need_new_pack = False
+                if not player_has_open_pack(draft_id, player):
+                    open_next_pack(draft_id, player)
     if need_new_pack:
-        open_new_pack(draft_id)
+        if draft_finished(draft_id):
+            for player in get_players(draft_id):
+                client.chat_postMessage(
+                    channel=get_player_dm_id(player),
+                    text='The draft is complete! Here are your picks:'
+                )
+                picks = get_picks(draft_id, player)
+                client.chat_postMessage(
+                    channel=get_player_dm_id(player),
+                    text=format_picks('Corp:\n\n', picks['corp'])
+                )
+                client.chat_postMessage(
+                    channel=get_player_dm_id(player),
+                    text=format_picks('Runner:\n\n', picks['runner'])
+                )
+        else:
+            open_new_pack(draft_id)
+
+
+def format_picks(heading, picks):
+    cards = '\n'.join(picks)
+    return '```' + heading + cards + '```'
 
 
 # Endpoints / Slash Commands
@@ -328,7 +373,12 @@ def start_draft():
         setup_packs(draft_id)
         assign_seat_numbers(draft_id)
         DRAFTS[draft_id]['metadata']['has_started'] = True
-        open_new_pack(draft_id, 'corp')
+        for player in get_players(draft_id):
+            client.chat_postMessage(
+                channel=get_player_dm_id(player),
+                text='Welcome to the draft! Here is your first pack. Good luck!'
+            )
+        open_new_pack(draft_id)
         return '', 200
 
 
@@ -396,15 +446,3 @@ def reset_draft():
 
 if __name__ == '__main__':
     app.run()
-
-    # data_files = os.listdir(HERE + '/data')
-    # for filename in data_files:
-    #     if filename.split('.')[1] != 'json':
-    #         continue
-    #     filepath = HERE + '/data/' + filename
-    #     with open(filepath, 'r') as f:
-    #         side = filename.split('_')[0]
-    #         cards = json.loads(f.read())['cards']
-    #         for card in cards:
-    #             print(templates.format(card))
-    #             print('~~~')
