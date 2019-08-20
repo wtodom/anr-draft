@@ -352,13 +352,14 @@ def cleanup(draft_id):
 
 
 def format_picks(heading, picks):
-    for i, card in enumerate(picks):
+    picks_copy = picks[:]
+    for i, card in enumerate(picks_copy):
         if i < 3 or 47 < i < 51:
             pre = '1 '
         else:
             pre = '3 '
-        picks[i] = pre + card
-    cards = '\n'.join(picks)
+        picks_copy[i] = pre + card
+    cards = '\n'.join(picks_copy)
     return '```' + heading + '\n' + cards + '```'
 
 
@@ -534,6 +535,31 @@ def leave_draft():
     return (
         'Successfully withdrew from draft `{draft_id}`.'
     ).format(draft_id=draft_id, creator=creator_name)
+
+
+@app.route('/picks', methods=['POST'])
+def picks():
+    request_token = request.form['token']
+    if request_token == VERIFICATION_TOKEN:
+        player_name = request.form['user_name']
+        # remove_player() does the checks I usually do here
+        if player_name not in PLAYERS:
+            return 'You are not enrolled in a draft.'
+        draft_id = PLAYERS[player_name]['draft_id']
+        client.chat_postMessage(
+            channel=get_player_dm_id(player_name),
+            text='Here are your picks so far:'
+        )
+        picks = get_picks(draft_id, player_name)
+        client.chat_postMessage(
+            channel=get_player_dm_id(player_name),
+            text=format_picks('Corp:\n\n', picks['corp'])
+        )
+        client.chat_postMessage(
+            channel=get_player_dm_id(player_name),
+            text=format_picks('Runner:\n\n', picks['runner'])
+        )
+    return '', 200
 
 
 if __name__ == '__main__':
