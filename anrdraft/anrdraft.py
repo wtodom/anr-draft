@@ -309,8 +309,9 @@ def open_next_pack(draft_id, player):
 
 
 def open_next_pack_or_wait(payload):
+    card_name = ' '.join(payload['actions'][0]['text']['text'].split(' ')[1:])
     request = {
-        'text': ' '.join(payload['actions'][0]['text']['text'].split(' ')[1:]) + ' was picked.',
+        'text': card_name + ' was picked. A new pack will open once it is passed to you.',
         "replace_original": True
     }
     requests.post(payload['response_url'], json=request)
