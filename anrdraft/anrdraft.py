@@ -354,7 +354,7 @@ def cleanup(draft_id):
 def format_picks(heading, picks):
     picks_copy = picks[:]
     for i, card in enumerate(picks_copy):
-        if i < 3 or 47 < i < 51:
+        if i < 5 or 49 < i < 53:
             pre = '1 '
         else:
             pre = '3 '
