@@ -5,6 +5,7 @@ import json
 import os
 import random
 import string
+import time
 
 from flask import Flask, jsonify, request
 import requests
@@ -85,6 +86,17 @@ def draft_finished(draft_id):
     return True
 
 
+def draft_started(draft_id):
+    return DRAFTS[draft_id]['metadata']['has_started']
+
+
+def user_can_create_draft(username):
+    for draft in DRAFTS:
+        if DRAFTS[draft]['metadata']['creator'] == username:
+            return False
+    return True
+
+
 # Draft Setup
 
 def setup_draft(initiating_user_name, initiating_user_id):
@@ -125,11 +137,23 @@ def read_cards_from_file(filepath):
 
 
 def setup_packs(draft_id):
+    num_players = get_num_players(draft_id)
+    total_ids = num_players * 5
+    card_total = num_players * 15 * 3
+
     data_dir = HERE + '/data'
-    corp_ids = read_cards_from_file(data_dir + '/corp_ids.json')[:2]
-    corp_cards = read_cards_from_file(data_dir + '/corp_cards.json')[:6]
-    runner_ids = read_cards_from_file(data_dir + '/runner_ids.json')[:2]
-    runner_cards = read_cards_from_file(data_dir + '/runner_cards.json')[:6]
+    corp_ids = read_cards_from_file(data_dir + '/corp_ids.json')
+    random.shuffle(corp_ids)
+    corp_ids = corp_ids[:total_ids]
+    corp_cards = read_cards_from_file(data_dir + '/corp_cards.json')
+    random.shuffle(corp_cards)
+    corp_cards = corp_cards[:card_total]
+    runner_ids = read_cards_from_file(data_dir + '/runner_ids.json')
+    random.shuffle(runner_ids)
+    runner_ids = runner_ids[:total_ids]
+    runner_cards = read_cards_from_file(data_dir + '/runner_cards.json')
+    random.shuffle(runner_cards)
+    runner_cards = runner_cards[:card_total]
 
     pack_num = 0
     cards_per_pack = len(corp_cards) // (get_num_players(draft_id) * 3)
@@ -190,13 +214,13 @@ def add_player(player_name, player_id, draft_id):
 
 def remove_player(player_name, draft_id):
     if draft_id not in DRAFTS:
-        return 'DRAFT_NOT_FOUND'
+        return 'Draft `{draft_id}` does not exist.'.format(draft_id=draft_id)
     if DRAFTS[draft_id]['metadata']['has_started']:
-        return 'DRAFT_STARTED'
-    if player_name not in DRAFTS[draft_id]['players']:
-        return 'PLAYER_NOT_FOUND'
+        return 'Draft `{draft_id}` has already started.'.format(draft_id=draft_id)
+    if player_name not in get_players(draft_id):
+        return 'You were not registered for `{draft_id}`.'.format(draft_id=draft_id)
     del DRAFTS[draft_id]['players'][player_name]
-    return 'REMOVE_SUCCESSFUL'
+    return 'ok'
 
 
 def assign_seat_numbers(draft_id):
@@ -314,13 +338,28 @@ def open_next_pack_or_wait(payload):
                     channel=get_player_dm_id(player),
                     text=format_picks('Runner:\n\n', picks['runner'])
                 )
+            cleanup(draft_id)
         else:
             open_new_pack(draft_id)
 
 
+def cleanup(draft_id):
+    del DRAFTS[draft_id]
+    # make a copy for iteration so you can delete from the real one
+    for player in list(PLAYERS.keys()):
+        if PLAYERS[player]['draft_id'] == draft_id:
+            del PLAYERS[player]
+
+
 def format_picks(heading, picks):
+    for i, card in enumerate(picks):
+        if i < 3 or 47 < i < 51:
+            pre = '1 '
+        else:
+            pre = '3 '
+        picks[i] = pre + card
     cards = '\n'.join(picks)
-    return '```' + heading + cards + '```'
+    return '```' + heading + '\n' + cards + '```'
 
 
 # Endpoints / Slash Commands
@@ -341,12 +380,15 @@ def actions():
 def debug():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
-        with open('debug.log', 'w') as f:
-            f.write(json.dumps({
-                'PLAYERS': PLAYERS,
-                'DRAFTS': DRAFTS
-            }, indent=4, sort_keys=True))
-        return 'OK', 200
+        if request.form['user_name'] == 'weston.odom':
+            with open('debug.log', 'w') as f:
+                f.write(json.dumps({
+                    'dumped_at': time.strftime("%Y-%m-%d %H:%M"),
+                    'PLAYERS': PLAYERS,
+                    'DRAFTS': DRAFTS
+                }, indent=4, sort_keys=True))
+            return 'Dump successful.'
+        return 'Only an admin can use this command.'
 
 
 @app.route('/createdraft', methods=['POST'])
@@ -354,13 +396,52 @@ def create_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         user_name = request.form['user_name']
-        user_id = request.form['user_id']
-        new_draft_code = setup_draft(user_name, user_id)
-        return (
-            'Draft successfully created. Your draft ID is `{draft_id}`. '
-            'Other players can use this code with the `/joindraft` command '
-            'to join the draft.'
-        ).format(draft_id=new_draft_code)
+        if user_can_create_draft(user_name):
+            user_id = request.form['user_id']
+            new_draft_code = setup_draft(user_name, user_id)
+            return (
+                'Draft successfully created. Your draft ID is `{draft_id}`. '
+                'Other players can use this code with the `/joindraft` command '
+                'to join the draft.'
+            ).format(draft_id=new_draft_code)
+        else:
+            return (
+                'You can only create one draft at a time. You can use '
+                '`/canceldraft [draft_id]` to quit and then start over.'
+            )
+
+
+@app.route('/canceldraft', methods=['POST'])
+def cancel_draft():
+    request_token = request.form['token']
+    if request_token == VERIFICATION_TOKEN:
+        user_name = request.form['user_name']
+        draft_id = request.form['text']
+        if user_name != get_creator(draft_id):
+            return 'Only the draft creator can cancel it.'
+        if draft_id not in DRAFTS:
+            return 'Draft does not exist.'
+        if draft_started(draft_id):
+            return 'Draft `{draft_id}` has already started.'.format(
+                draft_id=draft_id
+            )
+        _cancel_draft(draft_id)
+        return 'Draft successfully cancelled.'
+
+
+def _cancel_draft(draft_id):
+    for player in get_players(draft_id):
+        client.chat_postMessage(
+            channel=get_player_dm_id(player),
+            text=(
+                'Draft `{draft_id}` was cancelled by '
+                '`{creator}`.'.format(
+                    draft_id=draft_id,
+                    creator=get_creator(draft_id)
+                )
+            )
+        )
+    cleanup(draft_id)
 
 
 @app.route('/startdraft', methods=['POST'])
@@ -368,8 +449,15 @@ def start_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
+        user_name = request.form['user_name']
+        if user_name != get_creator(draft_id):
+            return 'Only the draft creator can start the draft.'
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
+        if draft_started(draft_id):
+            return 'Draft `{draft_id}` has already started.'.format(
+                draft_id=draft_id
+            )
         setup_packs(draft_id)
         assign_seat_numbers(draft_id)
         DRAFTS[draft_id]['metadata']['has_started'] = True
@@ -390,14 +478,19 @@ def join_draft():
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
         player_name = request.form['user_name']
-        # TODO: don't allow joining the same draft multiple times
+        if player_name in get_players(draft_id):
+            return 'You can not join the same draft more than once.'
+        if draft_started(draft_id):
+            return 'Draft `{draft_id}` has already started.'.format(
+                draft_id=draft_id
+            )
         player_id = request.form['user_id']
         add_player(player_name, player_id, draft_id)
         creator_name = get_creator(draft_id)
-        channel = get_player_dm_id(creator_name)
+        player_dm_channel = get_player_dm_id(creator_name)
         num_players = get_num_players(draft_id)
         client.chat_postMessage(
-            channel=channel,
+            channel=player_dm_channel,
             text=(
                 '{player} has joined your draft (`{draft}`). There are now '
                 '{num} players registered.').format(
@@ -406,42 +499,41 @@ def join_draft():
         )
     return (
         'Successfully joined draft `{draft_id}`. Please wait for `{creator}` '
-        'begin the draft.'
+        'to begin the draft.'
     ).format(draft_id=draft_id, creator=creator_name)
 
 
 @app.route('/leavedraft', methods=['POST'])
 def leave_draft():
-    # NOTE: UNTESTED
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
         player_name = request.form['user_name']
+        # remove_player() does the checks I usually do here
         res = remove_player(player_name, draft_id)
-        if 'SUCCESS' not in res:
+        if res != 'ok':
             return 'Failed to leave draft. Error: ' + res
+        if player_name == get_creator(draft_id):
+            _cancel_draft(draft_id)
+            return (
+                'Successfully withdrew from draft `{draft_id}`. '
+                'Because you were the creator of this draft it has '
+                'been cancelled. The other players have been notified.'
+            ).format(draft_id=draft_id)
         creator_name = get_creator(draft_id)
-        # TODO: notify creator
+        player_dm_channel = get_player_dm_id(creator_name)
+        num_players = get_num_players(draft_id)
+        client.chat_postMessage(
+            channel=player_dm_channel,
+            text=(
+                '{player} has left your draft (`{draft}`). There are now '
+                '{num} players registered.').format(
+                    player=player_name, draft=draft_id, num=num_players
+            )
+        )
     return (
-        'Successfully joined draft `{draft_id}`. Please wait for `{creator}` '
-        'begin the draft.'
+        'Successfully withdrew from draft `{draft_id}`.'
     ).format(draft_id=draft_id, creator=creator_name)
-
-
-@app.route('/resetdraft', methods=['POST'])
-def reset_draft():
-    return '`/resetdraft` is deprecated.'
-    # request_token = request.form['token']
-    # if request_token == VERIFICATION_TOKEN:
-    #     if request.form['user_name'] != 'weston.odom':
-    #         return 'This action is only available to admins.'
-    #     draft_id = request.form['text']
-    #     if draft_id == '':
-    #         return 'You must provide a draft_id.'
-    #     del DRAFTS[draft_id]
-    #     return 'Draft `{draft_id}` successfully deleted.'.format(
-    #         draft_id=draft_id
-    #     )
 
 
 if __name__ == '__main__':
