@@ -393,7 +393,7 @@ def debug():
         return 'Only an admin can use this command.'
 
 
-@app.route('/createdraft', methods=['POST'])
+@app.route('/draft-create', methods=['POST'])
 def create_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
@@ -413,7 +413,7 @@ def create_draft():
             )
 
 
-@app.route('/canceldraft', methods=['POST'])
+@app.route('/draft-cancel', methods=['POST'])
 def cancel_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
@@ -446,7 +446,7 @@ def _cancel_draft(draft_id):
     cleanup(draft_id)
 
 
-@app.route('/startdraft', methods=['POST'])
+@app.route('/draft-start', methods=['POST'])
 def start_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
@@ -472,7 +472,7 @@ def start_draft():
         return '', 200
 
 
-@app.route('/joindraft', methods=['POST'])
+@app.route('/draft-join', methods=['POST'])
 def join_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
@@ -505,7 +505,7 @@ def join_draft():
     ).format(draft_id=draft_id, creator=creator_name)
 
 
-@app.route('/leavedraft', methods=['POST'])
+@app.route('/draft-leave', methods=['POST'])
 def leave_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
@@ -538,7 +538,7 @@ def leave_draft():
     ).format(draft_id=draft_id, creator=creator_name)
 
 
-@app.route('/picks', methods=['POST'])
+@app.route('/draft-picks', methods=['POST'])
 def picks():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
