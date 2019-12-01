@@ -1,1 +1,1 @@
-web: gunicorn anrdraft:app
+web: gunicorn --pythonpath anrdraft anrdraft:app
