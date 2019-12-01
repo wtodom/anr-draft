@@ -9,6 +9,8 @@ import time
 
 from flask import Flask, jsonify, request
 import requests
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 import slack
 
 from templates import blocks, templates
@@ -18,9 +20,15 @@ app = Flask(__name__)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 with open(HERE + '/secrets.json', 'r') as f:
-    tokens = json.loads(f.read())
-    API_TOKEN = tokens['api_token']
-    VERIFICATION_TOKEN = tokens['verification_token']
+    secrets = json.loads(f.read())
+    API_TOKEN = secrets['api_token']
+    VERIFICATION_TOKEN = secrets['verification_token']
+    SENTRY_DSN = secrets['sentry_dsn']
+
+sentry_sdk.init(
+    dsn=SENTRY_DSN,
+    integrations=[FlaskIntegration()]
+)
 
 client = slack.WebClient(token=API_TOKEN)
 

@@ -11,6 +11,7 @@ flask = "*"
 requests = "*"
 pylint = "*"
 slackclient = "*"
+sentry-sdk = {extras = ["flask"],version = "==0.13.4"}
 
 [requires]
 python_version = "3.7"
