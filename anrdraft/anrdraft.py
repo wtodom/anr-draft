@@ -19,11 +19,18 @@ app = Flask(__name__)
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-with open(HERE + '/secrets.json', 'r') as f:
-    secrets = json.loads(f.read())
-    API_TOKEN = secrets['api_token']
-    VERIFICATION_TOKEN = secrets['verification_token']
-    SENTRY_DSN = secrets['sentry_dsn']
+
+on_heroku = os.environ.get('on_heroku')
+if on_heroku:
+    API_TOKEN = os.environ.get('api_token')
+    VERIFICATION_TOKEN = os.environ.get('verification_token')
+    SENTRY_DSN = os.environ.get('sentry_dsn')
+else:
+    with open(HERE + '/secrets.json', 'r') as f:
+        secrets = json.loads(f.read())
+        API_TOKEN = secrets['api_token']
+        VERIFICATION_TOKEN = secrets['verification_token']
+        SENTRY_DSN = secrets['sentry_dsn']
 
 sentry_sdk.init(
     dsn=SENTRY_DSN,
