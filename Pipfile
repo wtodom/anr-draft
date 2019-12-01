@@ -12,6 +12,7 @@ requests = "*"
 pylint = "*"
 slackclient = "*"
 sentry-sdk = {extras = ["flask"],version = "==0.13.4"}
+gunicorn = "*"
 
 [requires]
 python_version = "3.7"
