@@ -1,1 +1,1 @@
-web: gunicorn app:anrdraft
+web: gunicorn anrdraft:app
