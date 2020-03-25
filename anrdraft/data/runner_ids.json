@@ -864,6 +864,26 @@
       "title": "Lat: Ethical Freelancer",
       "type_code": "identity",
       "uniqueness": false
-    }
+    },
+	{
+      "base_link":  0,
+      "code":  "26066",
+      "deck_limit":  1,
+      "faction_code":  "anarch",
+      "faction_cost":  0,
+      "flavor":  "Please, let me have this dream.\nFlip side:\nI\u0027m going to be my own kind of hero.",
+      "illustrator":  "Luminita Pham",
+      "influence_limit":  15,
+      "keywords":  "Natural",
+      "minimum_deck_size":  45,
+      "pack_code":  "ur",
+      "position":  66,
+      "quantity":  3,
+      "side_code":  "runner",
+      "text":  "When your turn ends, if you accessed at least 1 card this turn, gain 2[credit] and flip this identity.\nFlip side:\nWhen your turn begins, draw 1 card and lose 1[credit].\nWhen your turn ends, if you did not access at least 1 card this turn, flip this identity.",
+      "title":  "Hoshiko Shiro: Untold Protagonist",
+      "type_code":  "identity",
+      "uniqueness":  false
+	}
   ]
 }
