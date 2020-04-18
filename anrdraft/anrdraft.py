@@ -349,11 +349,11 @@ def open_next_pack_or_wait(payload):
                 picks = get_picks(draft_id, player)
                 client.chat_postMessage(
                     channel=get_player_dm_id(player),
-                    text=format_picks('Corp:\n\n', picks['corp'])
+                    text=format_picks('Corp:\n', picks['corp'])
                 )
                 client.chat_postMessage(
                     channel=get_player_dm_id(player),
-                    text=format_picks('Runner:\n\n', picks['runner'])
+                    text=format_picks('Runner:\n', picks['runner'])
                 )
             cleanup(draft_id)
         else:
