@@ -307,6 +307,7 @@ def open_next_pack(draft_id, player):
     card_blocks = [blocks.divider()]
     for card in pack:
         card_text = templates.format(card)
+        # TODO: maybe encode list index so we don't have to iterate to pick the card.
         button_value = '--'.join([draft_id, player, card['code']])
         pick_block = blocks.text_with_button(
             card_text, card['title'], button_value)
@@ -418,13 +419,13 @@ def create_draft():
             new_draft_code = setup_draft(user_name, user_id)
             return (
                 'Draft successfully created. Your draft ID is `{draft_id}`. '
-                'Other players can use this code with the `/joindraft` command '
-                'to join the draft.'
+                'Other players can use this code with the `/draft-join` '
+                'command to join the draft.'
             ).format(draft_id=new_draft_code)
         else:
             return (
                 'You can only create one draft at a time. You can use '
-                '`/canceldraft [draft_id]` to quit and then start over.'
+                '`/draft-cancel [draft_id]` to quit and then start over.'
             )
 
 
