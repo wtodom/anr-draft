@@ -435,6 +435,8 @@ def cancel_draft():
     if request_token == VERIFICATION_TOKEN:
         user_name = request.form['user_name']
         draft_id = request.form['text']
+        if draft_id[0] == draft_id[-1] == '`':
+            draft_id = draft_id[1:-1]
         if user_name != get_creator(draft_id):
             return 'Only the draft creator can cancel it.'
         if draft_id not in DRAFTS:
@@ -467,6 +469,8 @@ def start_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
+        if draft_id[0] == draft_id[-1] == '`':
+            draft_id = draft_id[1:-1]
         user_name = request.form['user_name']
         if user_name != get_creator(draft_id):
             return 'Only the draft creator can start the draft.'
@@ -493,6 +497,8 @@ def join_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
+        if draft_id[0] == draft_id[-1] == '`':
+            draft_id = draft_id[1:-1]
         if draft_id not in DRAFTS:
             return 'Draft does not exist.'
         player_name = request.form['user_name']
@@ -526,6 +532,8 @@ def leave_draft():
     request_token = request.form['token']
     if request_token == VERIFICATION_TOKEN:
         draft_id = request.form['text']
+        if draft_id[0] == draft_id[-1] == '`':
+            draft_id = draft_id[1:-1]
         player_name = request.form['user_name']
         # remove_player() does the checks I usually do here
         res = remove_player(player_name, draft_id)
